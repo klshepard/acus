@@ -12,7 +12,7 @@ deadangle = pi/2;
 clusterSize = 16;
 xpitch = 25.67; % xpitch = 25.67; for dualShank2018........xpitch = 24.93; for quadShank2020
 ypitch = 73.22; % ypitch = 73.22; for dualShank2018........ypitch = 97.00; for quadShank2020
-NPixel = 256;
+NPixel = 128;
 DProbe = create_Probe(NPixel,xpitch,ypitch,0,0);
 
 % %for the 2D image
@@ -41,86 +41,86 @@ detectionFieldColumnNormalized = detectionField./max(detectionField);
 detectionFieldAllNormalized = detectionField./max(max(detectionField));
 
 %% step2: create multiple fluorosphere point sources within the volume and measure the shank response.
-%load('angle_sensitivity_data_dualShank2018/Plots/simulated_shank/d_pixel_angle_sensitivity_data_resolution_x25_y15_z30.mat')
-%load('angle_sensitivity_data_dualShank2018/Plots/simulated_shank/d_pixel_angle_sensitivity_data_resolution_x10_y10_z10.mat')
-
-L=1;
-[XYZloc,xloc,x_int] = create_random_beads_3D(X,Y,Z,L,X(1),Y(1),Z(1));
-
-XINTG = reshape(x_int,length(X),length(Y),length(Z));
-figure(28); clf;
-scatter3(XYZloc(:,1),XYZloc(:,2),XYZloc(:,3),'g', 'o', 'filled');
-axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]);
-
-%superposition of these beads' shank response will create the final measurement.
-% using detectionField:
-linearizedShankResponse = detectionField*x_int;
-figure(20); subplot(L+1,1,1);
-plot(linearizedShankResponse); xlim([1 NPixel]); title(sprintf('Total Response'));
-
-% if we'd like to see individual beads' effects:
-beadResponses = zeros(NPixel, L);
-for k=1:L
-    beadResponses(:,k) = detectionField(:,xloc(k));
-    figure(20); subplot(L+1,1,k+1); plot(beadResponses(:,k)); xlim([1 NPixel]); title(sprintf('Bead Location: X=%i um, Y=%i um, Z=%i um',XYZloc(k,1),XYZloc(k,2),XYZloc(k,3)));
-end
-
+% %load('angle_sensitivity_data_dualShank2018/Plots/simulated_shank/d_pixel_angle_sensitivity_data_resolution_x25_y15_z30.mat')
+% %load('angle_sensitivity_data_dualShank2018/Plots/simulated_shank/d_pixel_angle_sensitivity_data_resolution_x10_y10_z10.mat')
+% 
+% L=3;
+% [XYZloc,xloc,x_int] = create_random_beads_3D(X,Y,Z,L,X(1),Y(1),Z(1));
+% 
+% XINTG = reshape(x_int,length(X),length(Y),length(Z));
+% figure(28); clf;
+% scatter3(XYZloc(:,1),XYZloc(:,2),XYZloc(:,3),'g', 'o', 'filled');
+% axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]);
+% 
+% %superposition of these beads' shank response will create the final measurement.
+% % using detectionField:
+% linearizedShankResponse = detectionField*x_int;
+% figure(20); subplot(L+1,1,1);
+% plot(linearizedShankResponse); xlim([1 NPixel]); title(sprintf('Total Response'));
+% 
+% % if we'd like to see individual beads' effects:
+% beadResponses = zeros(NPixel, L);
+% for k=1:L
+%     beadResponses(:,k) = detectionField(:,xloc(k));
+%     figure(20); subplot(L+1,1,k+1); plot(beadResponses(:,k)); xlim([1 NPixel]); title(sprintf('Bead Location: X=%i um, Y=%i um, Z=%i um',XYZloc(k,1),XYZloc(k,2),XYZloc(k,3)));
+% end
+% 
 %% step 3: add noises and take multiple frames/samples
-
-%load('angle_sensitivity_data/Plots/simulated_shank/d_pixel_angle_sensitivity_data_resolution_x25_y15_z30.mat')
-%load('angle_sensitivity_data_dualShank2018/Plots/simulated_shank/d_pixel_angle_sensitivity_data_resolution_x10_y10_z10.mat')
-
-%add the time-gate to the sources
-cntrate = 1e6; %non-dcr counts/sec
-%scale by 1e12 for correct usage of imnoise 
-cntscaler = cntrate/1e12;
-simSIG = 1; % simulate noises for signal data, iterates for the number of samples.
-simMAP = 1; % simulate noises for mapping data, iterates for the number of cubic units in the volume.
-
-FPS = 200;
-time = 30; %sec
-numOfSamples = FPS*time;
-
-if simSIG
-    temporal_data = createFramesAddNoises(linearizedShankResponse, numOfSamples);
-end
-
-% to create a map of all cubic units in the volume
-if simMAP
-    mappedDetField = zeros(N, numOfSamples); % [numOfCubicUnits x numOfSamples]
-    for n=1:N
-
-        % creating frames with different noise levels for detectionField.
-        noised_detField = createFramesAddNoises(detectionField(:,n), numOfSamples);
-        
-        %fprintf('Mapping continues. n = %i\n', n);
-        mappedDetField(n,:) = fastICA(noised_detField, 1, 'kurtosis', 0);
-    
-    end
-end
-    
+% 
+% %load('angle_sensitivity_data/Plots/simulated_shank/d_pixel_angle_sensitivity_data_resolution_x25_y15_z30.mat')
+% %load('angle_sensitivity_data_dualShank2018/Plots/simulated_shank/d_pixel_angle_sensitivity_data_resolution_x10_y10_z10.mat')
+% 
+% %add the time-gate to the sources
+% cntrate = 1e6; %non-dcr counts/sec
+% %scale by 1e12 for correct usage of imnoise 
+% cntscaler = cntrate/1e12;
+% simSIG = 1; % simulate noises for signal data, iterates for the number of samples.
+% simMAP = 1; % simulate noises for mapping data, iterates for the number of cubic units in the volume.
+% 
+% FPS = 400;
+% time = 5; %sec
+% numOfSamples = FPS*time;
+% 
+% if simSIG
+%     temporal_data = createFramesAddNoises(linearizedShankResponse, numOfSamples);
+% end
+% 
+% % to create a map of all cubic units in the volume
+% if simMAP
+%     mappedDetField = zeros(N, numOfSamples); % [numOfCubicUnits x numOfSamples]
+%     for n=1:N
+% 
+%         % creating frames with different noise levels for detectionField.
+%         noised_detField = createFramesAddNoises(detectionField(:,n), numOfSamples);
+%         
+%         %fprintf('Mapping continues. n = %i\n', n);
+%         mappedDetField(n,:) = fastICA(noised_detField, 1, 'kurtosis', 0);
+%     
+%     end
+% end
+%     
 %% step4: reconstruct BSS from SIG_blurred (simulation) or measured data N_SPAD(257:512) (empirical)
-
-%load('angle_sensitivity_data_quad2020/Plots/simulated_shank/detection_field_mapped_200fps_30sec_simSIG_simMAP_resolution_x10_y10_z10.mat')
-
-temporal_data = delta_mean_stim;
-[Lhat, PCA_scores, Zica, Zica2, W, Wunnoised] = bss_with_pca_and_ica(temporal_data, 95);
-
-XYZlocDetected = zeros(Lhat,3);
-xlocDetected = zeros(Lhat,1);
-for b=1:Lhat
-    mappedDiff = mappedDetField - Zica2(b);
-    RMSE = sqrt(sum(mappedDiff.^2,2));
-    [val, ind] = min(RMSE);
-    xlocDetected(b) = ind;
-    
-    [x, y, z] = ind2sub(sizes,ind);
-    XYZlocDetected(b,1) = X(x); XYZlocDetected(b,2) = Y(y); XYZlocDetected(b,3) = Z(z);
-end
-
-figure(28); hold on; grid;
-scatter3(XYZlocDetected(:,1),XYZlocDetected(:,2),XYZlocDetected(:,3),'r', '*');
-axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]);
+% % % % % % % % 
+% % % % % % % % %load('angle_sensitivity_data_quad2020/Plots/simulated_shank/detection_field_mapped_200fps_30sec_simSIG_simMAP_resolution_x10_y10_z10.mat')
+% % % % % % % % 
+% % % % % % % % temporal_data = delta_mean_stim;
+% % % % % % % % [Lhat, PCA_scores, Zica, Zica2, W, Wunnoised] = bss_with_pca_and_ica(temporal_data, 95);
+% % % % % % % % 
+% % % % % % % % XYZlocDetected = zeros(Lhat,3);
+% % % % % % % % xlocDetected = zeros(Lhat,1);
+% % % % % % % % for b=1:Lhat
+% % % % % % % %     mappedDiff = mappedDetField - Zica2(b);
+% % % % % % % %     RMSE = sqrt(sum(mappedDiff.^2,2));
+% % % % % % % %     [val, ind] = min(RMSE);
+% % % % % % % %     xlocDetected(b) = ind;
+% % % % % % % %     
+% % % % % % % %     [x, y, z] = ind2sub(sizes,ind);
+% % % % % % % %     XYZlocDetected(b,1) = X(x); XYZlocDetected(b,2) = Y(y); XYZlocDetected(b,3) = Z(z);
+% % % % % % % % end
+% % % % % % % % 
+% % % % % % % % figure(28); hold on; grid;
+% % % % % % % % scatter3(XYZlocDetected(:,1),XYZlocDetected(:,2),XYZlocDetected(:,3),'r', '*');
+% % % % % % % % axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]);
 
 %% step4v2: use low-pass filtering to determine width, diff and relative intensity to find fluorophores.
 
@@ -131,7 +131,7 @@ axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]);
 
 %load('20230512_GFP_workdir/savedata/20230603_all_data.mat');
 
-%load('20230909_in_vivo_GFP_workdir/savedata/day_2_animal_1_moving_shank_4_all_data.mat'); fps = 40;
+load('20230909_in_vivo_GFP_workdir/savedata/day_2_animal_1_moving_shank_4_all_data.mat'); fps = 40;
 %load('20230909_in_vivo_GFP_workdir/savedata/day_2_animal_1_moving_shank_4_all_data_400fps.mat'); fps = 400;
 
 %load('/users/syilmaz/MATLAB/20230420_quad2020_in_vivo/20230519_10um_bead_video_workdir/savedata/10um_bead_video_day6_3.mat');
@@ -238,54 +238,54 @@ previousLoc = -1; % this is needed if we're not doing video.
     
     previousLoc = inds(1);
     
-    %figure(31); hold on; grid;
-    %scatter3(XYZlocDetected(:,1),XYZlocDetected(:,2),XYZlocDetected(:,3),200,'g','filled','hexagram'); grid;
-    %axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]); grid;
+    figure(31); hold on; grid;
+    scatter3(XYZlocDetected(:,1),XYZlocDetected(:,2),XYZlocDetected(:,3),200,'g','filled','hexagram'); grid;
+    axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]); grid;
     
     end
     %colors used in the paper
     %7E2F8E
     %D95319
     %77AC30
-%% to create a video from a previously analyzed array, through plotting figures
-
-v = VideoWriter('day_2_animal_1_moving_shank_4_differential_to_initial_position_400fps_bss_smooth20_prom035_thres1_last40.avi');
-v.FrameRate = 400;
-open(v);
-
-for ff = 1: size(XYZlocDetected_single_bead_all, 1)
-    
-    try
-        figure(28);
-        scatter3(XYZlocDetected_single_bead_all(ff,1,1),XYZlocDetected_single_bead_all(ff,2,1),XYZlocDetected_single_bead_all(ff,3,1), 200, 'g', 'filled', 'hexagram'); grid;
-        axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]); grid;
-        % if you'd like to plot the second bead coming in and out of the view from time to time, uncomment below
-        hold on; scatter3(XYZlocDetected_single_bead_all(ff,1,2),XYZlocDetected_single_bead_all(ff,2,2),XYZlocDetected_single_bead_all(ff,3,2), 200, 'g', 'filled', 'pentagram'); grid;
-        axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]); grid;
-        
-        frame = getframe(gcf);
-        writeVideo(v, frame);
-        clf(28,'reset');
-    catch
-        try
-            clf(28,'reset');
-            figure(28);
-            scatter3(XYZlocDetected_single_bead_all(ff,1,1),XYZlocDetected_single_bead_all(ff,2,1),XYZlocDetected_single_bead_all(ff,3,1), 200, 'g', 'filled', 'hexagram'); grid;
-            axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]); grid;
-
-            frame = getframe(gcf);
-            writeVideo(v, frame);
-        catch
-            clf(28,'reset');
-            figure(28); % if not found, assign the previous one here.
-            scatter3(NaN,NaN,NaN, 200, 'g', 'filled', 'hexagram'); grid;
-            axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]); grid;
-            
-            frame = getframe(gcf);
-            writeVideo(v, frame);
-        end
-    end
-        
-end
-
-close(v);
+%% step5_to create a video from a previously analyzed array, through plotting figures
+% 
+% v = VideoWriter('day_2_animal_1_moving_shank_4_differential_to_initial_position_400fps_bss_smooth20_prom035_thres1_last40.avi');
+% v.FrameRate = 400;
+% open(v);
+% 
+% for ff = 1: size(XYZlocDetected_single_bead_all, 1)
+%     
+%     try
+%         figure(28);
+%         scatter3(XYZlocDetected_single_bead_all(ff,1,1),XYZlocDetected_single_bead_all(ff,2,1),XYZlocDetected_single_bead_all(ff,3,1), 200, 'g', 'filled', 'hexagram'); grid;
+%         axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]); grid;
+%         % if you'd like to plot the second bead coming in and out of the view from time to time, uncomment below
+%         hold on; scatter3(XYZlocDetected_single_bead_all(ff,1,2),XYZlocDetected_single_bead_all(ff,2,2),XYZlocDetected_single_bead_all(ff,3,2), 200, 'g', 'filled', 'pentagram'); grid;
+%         axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]); grid;
+%         
+%         frame = getframe(gcf);
+%         writeVideo(v, frame);
+%         clf(28,'reset');
+%     catch
+%         try
+%             clf(28,'reset');
+%             figure(28);
+%             scatter3(XYZlocDetected_single_bead_all(ff,1,1),XYZlocDetected_single_bead_all(ff,2,1),XYZlocDetected_single_bead_all(ff,3,1), 200, 'g', 'filled', 'hexagram'); grid;
+%             axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]); grid;
+% 
+%             frame = getframe(gcf);
+%             writeVideo(v, frame);
+%         catch
+%             clf(28,'reset');
+%             figure(28); % if not found, assign the previous one here.
+%             scatter3(NaN,NaN,NaN, 200, 'g', 'filled', 'hexagram'); grid;
+%             axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]); grid;
+%             
+%             frame = getframe(gcf);
+%             writeVideo(v, frame);
+%         end
+%     end
+%         
+% end
+% 
+% close(v);
