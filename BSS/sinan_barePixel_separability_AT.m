@@ -1,5 +1,6 @@
 addpath(genpath('/users/syilmaz/MATLAB/20230503_quad2020_in_vivo_bss/20220817_BSS_with_angle_sensitivity'))
 addpath(genpath('/users/syilmaz/MATLAB/20230503_quad2020_in_vivo_bss/pca_ica/pca_ica'))
+addpath(genpath('/users/syilmaz/MATLAB/20230503_quad2020_in_vivo//users/syilmaz/MATLAB/20230420_quad2020_in_vivo'))
 
 %analyzed fluorescent dye (only green):
     %FluoroSpheres, tau = 6ns, Ex = 505, Em = 515, QY = 0.8, SS = 30nm
@@ -122,7 +123,7 @@ detectionFieldAllNormalized = detectionField./max(max(detectionField));
 % % % % % % % % scatter3(XYZlocDetected(:,1),XYZlocDetected(:,2),XYZlocDetected(:,3),'r', '*');
 % % % % % % % % axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]);
 
-%% step4v2: use low-pass filtering to determine width, diff and relative intensity to find fluorophores.
+%% step4_v2: Custom BSS
 
 %load('angle_sensitivity_data_quad2020/Plots/simulated_shank/detection_field_mapped_200fps_30sec_simSIG_simMAP_resolution_x10_y10_z10.mat')
 
@@ -136,156 +137,118 @@ load('20230909_in_vivo_GFP_workdir/savedata/day_2_animal_1_moving_shank_4_all_da
 
 %load('/users/syilmaz/MATLAB/20230420_quad2020_in_vivo/20230519_10um_bead_video_workdir/savedata/10um_bead_video_day6_3.mat');
 
-% % % % %     XYZlocDetected_single_bead_all = ones(size(N_SPAD_all,2), 3, 2).*(NaN); % two beads are even detected here.
-XYZlocDetected_single_bead_all = ones(size(N_SPAD_all,2), 3).*(NaN); % only single bead is allowed to be detected.
-previousLoc = -1; % this is needed if we're not doing video.
-    for ff=121:1:size(N_SPAD_all_diff, 2)
-    
-    linearizedShankResponse = N_SPAD_all_diff(:, ff);
-    %linearizedShankResponse = rollingWindowHotPixRemoval(yes_neuron,5,3);
-    %linearizedShankResponse = yes_neuron;
-    %linearizedShankResponse = rollingWindowHotPixRemoval(z50u_y200u_xONSPAD',3,3);
-    %linearizedShankResponse = z50u_y200u_xONSPAD';
-    
-    %figure(7); plot(linearizedShankResponse); xlim([1 NPixel]); hold on; title('Linearized Shank Response')
-    %[autoCorr, w, diffHeight] = autocorrAndDiff(linearizedShankResponse, L);
+%load('/users/syilmaz/MATLAB/20230420_quad2020_in_vivo/20230519_10um_bead_video_workdir/20241126_revisions_four_beads/N_SPAD_four_beads.mat'); N_SPAD_all = N_SPAD; N_SPAD_all_diff = N_SPAD;
 
-    smoothData = smooth(linearizedShankResponse,20);
-    normalizedSmoothData = smoothData./max(smoothData);
+%load('/users/syilmaz/MATLAB/20230420_quad2020_in_vivo/20241105_revisions_in_vivo_sparse_GCaMP_workdir/savedata/in_vivo_sst_gcamp6s_animal_2_28-29_40fps.mat'); % N_SPAD_all_diff
+%load('/users/syilmaz/MATLAB/20230420_quad2020_in_vivo/20241105_revisions_in_vivo_sparse_GCaMP_workdir/savedata/in_vivo_sst_gcamp6s_animal_2_36&38_40fps.mat'); % N_SPAD_all_diff
+%load('/users/syilmaz/MATLAB/20230420_quad2020_in_vivo/20241105_revisions_in_vivo_sparse_GCaMP_workdir/savedata/in_vivo_sst_gcamp6s_animal_2_28-29_400fps_detrended_filtered.mat'); % N_SPAD_all_diff
 
-    %figure(1); plot(normalizedSmoothData); title('Normalized Smooth Data'); xlim([1 NPixel]); %hold on;
-    [peaks, peakLocs, peakWidths, peakProminences] = findpeaks(normalizedSmoothData,'SortStr','descend','MinPeakProminence',0.35);
-    NPeaks = length(peaks);
-    fprintf('We have %i number of neurons found.\n', NPeaks);
-    
-    % create a window centered around each peak with width to extract individual peaks
-    signalsExtracted = zeros(NPeaks, NPixel);
-    signalsExtractedNormalized = zeros(NPeaks, NPixel);
-    XYZlocDetected = zeros(NPeaks,3);
-    xlocDetected = zeros(NPeaks,1);
-    
-    thres = 1; % adjust it so that there is at least one peak satisfying this threshold condition.
-    for i=1:NPeaks
-        window = zeros(NPixel,1);
-        if peakLocs(i)-ceil(peakWidths(i)) >= 1 && peakLocs(i)+ceil(peakWidths(i)) <= NPixel
-            window(peakLocs(i)-ceil(peakWidths(i)):peakLocs(i)+ceil(peakWidths(i))) = 1;
-        elseif peakLocs(i)-ceil(peakWidths(i)) < 1
-            window(1:peakLocs(i)+ceil(peakWidths(i))+10) = 1;
-        elseif peakLocs(i)+ceil(peakWidths(i)) > NPixel
-            window(peakLocs(i)-ceil(peakWidths(i)-10):end) = 1;
-        end
+%%%%detection
 
-        signalsExtracted(i,:) = linearizedShankResponse .* window(1:NPixel);
+smoothWindow = 4; %4-30
+minPkProm = 0.1; 
+threshold = 1.5; %1-1.25-1.5
+spatialLPF = 40; %N -> 40
 
-        %figure(21); subplot(NPeaks,1,i); sgtitle('Extracted Bead Windows'); plot(signalsExtracted(i,:)); xlim([1 NPixel]);hold on;% title(sprintf('Bead Location: X=%i um, Y=%i um, Z=%i um',XYZloc(k,1),XYZloc(k,2),XYZloc(k,3)));
+% Reconstruct the bead video
 
-        signalsExtractedNormalized(i,:) = signalsExtracted(i,:) ./ max(signalsExtracted(i,:));
-        diff = detectionFieldColumnNormalized' - signalsExtractedNormalized(i,:);
-        RMSE = sqrt(sum(diff.^2,2));
-        [val, ind] = min(RMSE);
-        [vals, inds] = mink(RMSE, 40);
-        fprintf('Bead Location: %i, Minimum error: %f\n', ind, val);
-        
-        if val <= thres % if the error is within acceptable range, accept it and write it in the list.
-            
-            %fprintf('Peak prom.: %.2f, Peak width: %.2f, RMSE: %.2f.\n', peakProminences(1), peakWidths(1), val);
-            
-            xlocDetected(i) = ind;
-            % if new found location is within the best 20 guesses, assign the previous location.
-            if find(inds==previousLoc)
-                XYZlocDetected(i,1) = mode(X(x)); XYZlocDetected(i,2) = mode(Y(y)); XYZlocDetected(i,3) = mode(Z(z));
-                %XYZlocDetected(i,1) = int16(mean(X(x))); XYZlocDetected(i,2) = int16(mean(Y(y))); XYZlocDetected(i,3) = int16(mean(Z(z)));
-            else
-                % else, take mode of X, Y and Z of best 20 guesses.
-                [x, y, z] = ind2sub(sizes,inds);
-                XYZlocDetected(i,1) = mode(X(x)); XYZlocDetected(i,2) = mode(Y(y)); XYZlocDetected(i,3) = mode(Z(z));
-                %XYZlocDetected(i,1) = int16(mean(X(x))); XYZlocDetected(i,2) = int16(mean(Y(y))); XYZlocDetected(i,3) = int16(mean(Z(z)));
-            end
-            
-        elseif i ~= 1 % if the error is too high, improve the guess by arranging the z distance comparing it with the highest peak.
-            xlocDetected(i) = ind;
-            
-            [x, y, z] = ind2sub(sizes,ind);
-            XYZlocDetected(i,1) = X(x); XYZlocDetected(i,2) = Y(y);% XYZlocDetected(i,3) = Z(z);
+% in vivo structural imaging
+XYZlocDetected_single_bead_all = BSS_bead_video(N_SPAD_all_diff, NPixel, detectionFieldColumnNormalized, sizes, X,Y,Z, smoothWindow, minPkProm, threshold, spatialLPF); %12, 0.35, 1.5, 20);
+%save('/users/syilmaz/MATLAB/20230420_quad2020_in_vivo/20230519_10um_bead_video_workdir/savedata/day2_animal_1_moving_shank_4_40fps_bss_smooth20_prom04_thres1_last40.mat', '-v7.3');
+% in vivo functional imaging
+%save('/users/syilmaz/MATLAB/20230420_quad2020_in_vivo/20241105_revisions_in_vivo_sparse_GCaMP_workdir/savedata/in_vivo_sst_gcamp6s_animal_1_102_400fps_detrended3_filtered_3D_detected_all_voxels.mat','N_SPAD_all_diff', 'XYZlocDetected_single_bead_all', 'all_voxels_RMSE', '-v7.3');
 
-            maxSignal = max(signalsExtracted(1,:)); % max signal in the data measured. Found in the first peak.
-            medianPeak = median(nonzeros(signalsExtracted(i-1,:))); % median of the previous peak (i-1). Which gives us the hidden peak (i) within.
-            zFirstPeak = XYZlocDetected(1,3);
-
-            newZ = int64(sqrt(maxSignal/medianPeak) * zFirstPeak); % A/(z^2) = maxSignal & A/(newZ^2) = medianPeak
-
-            XYZlocDetected(i,3) = newZ;
-
-            fprintf('This error is higher than the threshold (%.2f). Scaling the z guess based on peak ratios.\nNew bead location: %i\n', thres, newZ);
-        else
-            xlocDetected(i) = ind;
-
-            [x, y, z] = ind2sub(sizes,ind);
-            XYZlocDetected(i,1) = NaN; XYZlocDetected(i,2) = NaN; XYZlocDetected(i,3) = NaN;
-            fprintf('Error of the first peak is higher than the threshold (%.2f). No bead found or the distance is higher than the z limit %i um. Prominence threshold can be adjusted.\n', thres, Z(end));
-        end
-    
-    end
-    %figure(30); hold on; grid; scatter3(XYZlocDetected(:,1),XYZlocDetected(:,2),XYZlocDetected(:,3), 200,'g', 'filled', 'hexagram'); grid; axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]); grid;
-    if NPeaks ==0
-        continue
-    %%%%% elseif NPeaks ==1
-        %%%%% XYZlocDetected_single_bead_all(ff,:) = XYZlocDetected(1,:);
-    else
-        XYZlocDetected_single_bead_all(ff,:) = XYZlocDetected(1,:);
-        %%%%% XYZlocDetected_single_bead_all(ff,:,2) = XYZlocDetected(2,:);
-    end
-    
-    previousLoc = inds(1);
-    
-    figure(31); hold on; grid;
-    scatter3(XYZlocDetected(:,1),XYZlocDetected(:,2),XYZlocDetected(:,3),200,'g','filled','hexagram'); grid;
-    axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]); grid;
-    
-    end
-    %colors used in the paper
-    %7E2F8E
-    %D95319
-    %77AC30
 %% step5_to create a video from a previously analyzed array, through plotting figures
-% 
-% v = VideoWriter('day_2_animal_1_moving_shank_4_differential_to_initial_position_400fps_bss_smooth20_prom035_thres1_last40.avi');
-% v.FrameRate = 400;
-% open(v);
-% 
-% for ff = 1: size(XYZlocDetected_single_bead_all, 1)
-%     
-%     try
-%         figure(28);
-%         scatter3(XYZlocDetected_single_bead_all(ff,1,1),XYZlocDetected_single_bead_all(ff,2,1),XYZlocDetected_single_bead_all(ff,3,1), 200, 'g', 'filled', 'hexagram'); grid;
-%         axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]); grid;
-%         % if you'd like to plot the second bead coming in and out of the view from time to time, uncomment below
-%         hold on; scatter3(XYZlocDetected_single_bead_all(ff,1,2),XYZlocDetected_single_bead_all(ff,2,2),XYZlocDetected_single_bead_all(ff,3,2), 200, 'g', 'filled', 'pentagram'); grid;
-%         axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]); grid;
-%         
-%         frame = getframe(gcf);
-%         writeVideo(v, frame);
-%         clf(28,'reset');
-%     catch
-%         try
-%             clf(28,'reset');
-%             figure(28);
-%             scatter3(XYZlocDetected_single_bead_all(ff,1,1),XYZlocDetected_single_bead_all(ff,2,1),XYZlocDetected_single_bead_all(ff,3,1), 200, 'g', 'filled', 'hexagram'); grid;
-%             axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]); grid;
-% 
-%             frame = getframe(gcf);
-%             writeVideo(v, frame);
-%         catch
-%             clf(28,'reset');
-%             figure(28); % if not found, assign the previous one here.
-%             scatter3(NaN,NaN,NaN, 200, 'g', 'filled', 'hexagram'); grid;
-%             axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]); grid;
-%             
-%             frame = getframe(gcf);
-%             writeVideo(v, frame);
-%         end
-%     end
-%         
-% end
-% 
-% close(v);
+% % % fps = 40;
+% % % fpsReductionRatio = 1;
+% % % 
+% % % v1 = VideoWriter(['in_vivo_sst_gcamp6s_animal_1_102_deltaF_video_xyz_' num2str(fps/fpsReductionRatio) 'fps_smoWin' num2str(smoothWindow) '_thres' num2str(threshold) '_spaLPF' num2str(spatialLPF) '.avi']);
+% % % v1.FrameRate = fps/fpsReductionRatio;
+% % % open(v1);
+% % % %v2 = VideoWriter(['in_vivo_sst_gcamp6s_animal_1_102_deltaF_video_xy_' num2str(fps/fpsReductionRatio) 'fps.avi']);
+% % % %v2.FrameRate = fps/fpsReductionRatio;
+% % % %open(v2);
+% % % 
+% % % XYZlocDetected_single_bead_all = blockproc(XYZlocDetected_single_bead_all, [fpsReductionRatio 3], @(x) mean(x.data, 1));
+% % % 
+% % % for ff = 1: size(XYZlocDetected_single_bead_all, 1)
+% % %     disp(ff);
+% % %     try
+% % %         figure(28);
+% % %         scatter3(XYZlocDetected_single_bead_all(ff,1,1),XYZlocDetected_single_bead_all(ff,2,1),XYZlocDetected_single_bead_all(ff,3,1), 200, 'g', 'filled', 'hexagram'); grid;
+% % %         axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]); grid; % For 3D view, view([-10 15]); grid;
+% % % % % if you'd like to plot the second bead coming in and out of the view from time to time, uncomment below
+% % % % %         %hold on; scatter3(XYZlocDetected_single_bead_all(ff,1,2),XYZlocDetected_single_bead_all(ff,2,2),XYZlocDetected_single_bead_all(ff,3,2), 200, 'g', 'filled', 'pentagram'); grid;
+% % % % %         %axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]); grid;
+% % %         frame = getframe(gcf);
+% % %         writeVideo(v1, frame);
+% % %         
+% % %         %view([0 90]); grid;
+% % %         %frame = getframe(gcf);
+% % %         %writeVideo(v2, frame);
+% % %         clf(28,'reset');
+% % %         
+% % %     catch
+% % %         try
+% % %             clf(28,'reset');
+% % %             figure(28);
+% % %             scatter3(XYZlocDetected_single_bead_all(ff,1,1),XYZlocDetected_single_bead_all(ff,2,1),XYZlocDetected_single_bead_all(ff,3,1), 200, 'g', 'filled', 'hexagram'); grid;
+% % %             axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]); grid;
+% % %             frame = getframe(gcf);
+% % %             writeVideo(v1, frame);
+% % %             
+% % %             %view([0 90]); grid;
+% % %             %frame = getframe(gcf);
+% % %             %writeVideo(v2, frame);
+% % %         catch
+% % %             clf(28,'reset');
+% % %             figure(28);
+% % %             scatter3(NaN,NaN,NaN, 200, 'g', 'filled', 'hexagram'); grid;
+% % %             axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]); grid;
+% % %             frame = getframe(gcf);
+% % %             writeVideo(v1, frame);
+% % %             
+% % %             %view([0 90]); grid;
+% % %             %frame = getframe(gcf);
+% % %             %writeVideo(v2, frame);
+% % %         end
+% % %     end
+% % %         
+% % % end
+% % % 
+% % % close(v1);
+% % % %close(v2);
+% % % 
+% % % %% to create a video from a previously analyzed array in temporal domain, through plotting various intensities in the same location
+% % % NPixel = 128;
+% % % fps = 400;
+% % % 
+% % % v1 = VideoWriter(['in_vivo_sst_gcamp6s_animal_1_102_deltaF_video_xyz_' num2str(fps) 'fps_detected_intensityMask_sized.avi']);
+% % % v1.FrameRate = fps;
+% % % open(v1);
+% % % for i=70:10:70
+% % %     for j =30:10:30
+% % %         for k=150:10:150
+% % %             XYZ_location = [i, j, k]; index = sub2ind(sizes,find(X==XYZ_location(1)), find(Y==XYZ_location(2)), find(Z==XYZ_location(3))); % where the neuron is detected previously.
+% % %             
+% % %             %pseudoInverseDecField = pinv(detectionFieldColumnNormalized);
+% % %             %sourceBackpropagated_temporal = pseudoInverseDecField(index,:)*N_SPAD_all_diff;
+% % %             %figure; plot((1:length(sourceBackpropagated_temporal))./fps,movmean(sourceBackpropagated_temporal,50)); title(num2str(XYZ_location));
+% % % 
+% % %             sourceBackpropagated_temporal = detectionFieldColumnNormalized(:,index)'*N_SPAD_all_diff;
+% % %             sourceBackpropagated_temporal_normalized = normalize(sourceBackpropagated_temporal, 'range', [1e-9 1]);
+% % %         end
+% % %     end
+% % % end
+% % % 
+% % % for ff = 1: length(sourceBackpropagated_temporal_normalized)
+% % %     disp(ff);
+% % %     figure(28);
+% % %     scatter3(XYZ_location(1),XYZ_location(2),XYZ_location(3), 200*sourceBackpropagated_temporal_normalized(ff), 'g', 'filled', 'hexagram', 'MarkerFaceAlpha', sourceBackpropagated_temporal_normalized(ff));
+% % %     axis([X(1) X(end) Y(1) Y(end) 0 Z(end)+1]); view([-10 15]);
+% % %     grid on;
+% % %     frame = getframe(gcf);
+% % %     writeVideo(v1, frame);
+% % %     clf(28,'reset');
+% % % end
+% % % close(v1);
