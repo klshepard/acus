@@ -13,7 +13,7 @@ function [physImg] = raw2SepRows_quad2020(N_SPAD)
 
 
 %hot pix removal by rolling window
-%N_SPAD_hpRemoved = rollingWindowHotPixRemoval(N_SPAD,5,5);
+N_SPAD_hpRemoved = rollingWindowHotPixRemoval(N_SPAD,5,5);
 
 nshanks = 1; %ceil(length(N_SPAD_hpRemoved)/256); 
 physImg = zeros(nshanks*2,64);
@@ -29,10 +29,10 @@ for ss = 1:nshanks %shank index
         end
         newR = (ss-1)*2+1+toprow;
         newC = 1+(iof4+(toprow-1)*2)+(groupof4-1)*2;
-        physImg(newR,newC) = N_SPAD((ss-1)*128+pp);
+        physImg(newR,newC) = N_SPAD_hpRemoved((ss-1)*128+pp);
     end
 end
 
 figure(802);
-subplot(2,1,1); imagesc(physImg); set(gca,'Ydir','normal'); caxis([0 400]);
-subplot(2,1,2); plot(physImg','LineWidth',2); xlim([1,length(physImg(1,:))]); legend('Row 1', 'Row 2'); ylim([0, 400]);
+subplot(2,1,1); imagesc(physImg); set(gca,'Ydir','normal'); %caxis([0, 275])
+subplot(2,1,2); plot(physImg','LineWidth',1); xlim([1,length(physImg(1,:))]); legend('r1','r2') %ylim([-20, 275]);
