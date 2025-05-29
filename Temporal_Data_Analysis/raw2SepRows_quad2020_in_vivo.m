@@ -34,5 +34,5 @@ for ss = 1:nshanks %shank index
 end
 
 figure(802);
-subplot(2,1,1); imagesc(physImg); set(gca,'Ydir','normal'); caxis([0, 275])
-subplot(2,1,2); plot(physImg','LineWidth',1); xlim([1,length(physImg(1,:))]); ylim([-20, 275]); legend('r1','r2')
+subplot(2,1,1); imagesc(physImg); set(gca,'Ydir','normal'); %caxis([0, 275])
+subplot(2,1,2); plot(physImg','LineWidth',1); xlim([1,length(physImg(1,:))]); legend('r1','r2') %ylim([-20, 275]);
