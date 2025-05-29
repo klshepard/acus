@@ -1,4 +1,4 @@
-# acus
+# Acus
 Implantable CMOS Deep-Brain Fluorescence Imager with Single-Cell Resolution
 
 1- "BSS" folder contains all the code necessary to run the blind source separation algorithm. Along with the code, a sample real-life in vivo dataset is also provided. This dataset and its output can be plotted by running "sinan_barePixel_separability_AT.m" file.
